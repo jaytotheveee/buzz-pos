@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, Addon, OrderItem } from "@/types";
+import { Product, Addon, OrderItem, Category } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ interface ProductSelectorProps {
 export default function ProductSelector({ onAddToCart }: ProductSelectorProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
@@ -27,8 +28,12 @@ export default function ProductSelector({ onAddToCart }: ProductSelectorProps) {
   const [drinkNames, setDrinkNames] = useState<string[]>([""]);
 
   useEffect(() => {
-    fetchProducts();
-    fetchAddons();
+    const fetchData = async () => {
+      setLoading(true);
+      await Promise.all([fetchProducts(), fetchAddons(), fetchCategories()]);
+      setLoading(false);
+    };
+    fetchData();
   }, []);
 
   const fetchProducts = async () => {
@@ -60,10 +65,21 @@ export default function ProductSelector({ onAddToCart }: ProductSelectorProps) {
         addonsData.push({ id: doc.id, ...doc.data() } as Addon);
       });
       setAddons(addonsData);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching addons:", error);
-      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "categories"));
+      const categoriesData: Category[] = [];
+      snapshot.forEach((doc) => {
+        categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+      });
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
     }
   };
 
@@ -153,12 +169,12 @@ export default function ProductSelector({ onAddToCart }: ProductSelectorProps) {
                   acc[category].push(product);
                   return acc;
                 }, {} as Record<string, typeof products>)
-              ).map(([category, categoryProducts]) => (
-                <div key={category}>
-                  <h3 className="text-lg font-semibold text-foreground mb-3 capitalize">
-                    {category.replace("-", " ")}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ).map(([categorySlug, categoryProducts]) => (
+              <div key={categorySlug}>
+                <h3 className="text-lg font-semibold text-foreground mb-3">
+                  {categories.find((c) => c.slug === categorySlug)?.name ||
+                    categorySlug.replace("-", " ")}
+                </h3>                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {categoryProducts.map((product) => (
                       <div
                         key={product.id}

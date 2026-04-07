@@ -12,7 +12,7 @@ import {
 import { getFirebaseDb } from "@/lib/firebase-client";
 import { markTokenAsUsed } from "@/lib/customer-tokens";
 import { formatTrackingUrl } from "@/lib/order-tracking";
-import { Product, Addon, OrderItem, CustomerToken } from "@/types";
+import { Product, Addon, OrderItem, CustomerToken, Category } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export default function CustomerOrderForm({
 }: CustomerOrderFormProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -57,39 +58,40 @@ export default function CustomerOrderForm({
   const [orderId, setOrderId] = useState("");
 
   useEffect(() => {
-    fetchProductsAndAddons();
+    fetchData();
   }, []);
 
-  const fetchProductsAndAddons = async () => {
+  const fetchData = async () => {
     try {
       const db = getFirebaseDb();
 
-      // Fetch products
-      const productsQuery = query(
-        collection(db, "products"),
-        where("available", "==", true)
-      );
-      const productsSnapshot = await getDocs(productsQuery);
+      // Fetch products, addons, and categories in parallel
+      const [productsSnapshot, addonsSnapshot, categoriesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, "products"), where("available", "==", true))),
+        getDocs(query(collection(db, "addons"), where("available", "==", true))),
+        getDocs(collection(db, "categories"))
+      ]);
+
       const productsData: Product[] = [];
       productsSnapshot.forEach((doc) => {
         productsData.push({ id: doc.id, ...doc.data() } as Product);
       });
 
-      // Fetch addons
-      const addonsQuery = query(
-        collection(db, "addons"),
-        where("available", "==", true)
-      );
-      const addonsSnapshot = await getDocs(addonsQuery);
       const addonsData: Addon[] = [];
       addonsSnapshot.forEach((doc) => {
         addonsData.push({ id: doc.id, ...doc.data() } as Addon);
       });
 
+      const categoriesData: Category[] = [];
+      categoriesSnapshot.forEach((doc) => {
+        categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+      });
+
       setProducts(productsData);
       setAddons(addonsData);
+      setCategories(categoriesData);
     } catch (error) {
-      console.error("Error fetching products and addons:", error);
+      console.error("Error fetching data:", error);
       toast.error("Error loading menu. Please try again.");
     } finally {
       setLoading(false);
@@ -313,10 +315,11 @@ export default function CustomerOrderForm({
                     acc[category].push(product);
                     return acc;
                   }, {} as Record<string, typeof products>)
-                ).map(([category, categoryProducts]) => (
-                  <div key={category}>
-                    <h3 className="text-lg font-semibold text-foreground mb-3 capitalize">
-                      {category.replace("-", " ")}
+                ).map(([categorySlug, categoryProducts]) => (
+                  <div key={categorySlug}>
+                    <h3 className="text-lg font-semibold text-foreground mb-3">
+                      {categories.find((c) => c.slug === categorySlug)?.name ||
+                        categorySlug.replace("-", " ")}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {categoryProducts.map((product) => (

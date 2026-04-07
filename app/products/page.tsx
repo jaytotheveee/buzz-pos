@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { Product, Addon } from "@/types";
+import { Product, Addon, Category } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,10 +36,13 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [showNewAddon, setShowNewAddon] = useState(false);
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -71,8 +74,66 @@ export default function ProductsPage() {
         addonsData.push({ id: doc.id, ...doc.data() } as Addon);
       });
       setAddons(addonsData);
+
+      const categoriesSnapshot = await getDocs(collection(db, "categories"));
+      const categoriesData: Category[] = [];
+      categoriesSnapshot.forEach((doc) => {
+        categoriesData.push({ id: doc.id, ...doc.data() } as Category);
+      });
+
+      // If no categories exist, add default ones
+      if (categoriesData.length === 0) {
+        const defaults = [
+          { name: "Espresso-Based", slug: "espresso-based" },
+          { name: "No Caffeine", slug: "no-caffeine" },
+        ];
+        for (const cat of defaults) {
+          const docRef = await addDoc(collection(db, "categories"), cat);
+          categoriesData.push({ id: docRef.id, ...cat });
+        }
+      }
+      setCategories(categoriesData);
     } catch (error) {
       console.error("Error fetching data:", error);
+    }
+  };
+
+  const handleSaveCategory = async (categoryData: Omit<Category, "id">) => {
+    try {
+      if (editingCategory) {
+        const categoryRef = doc(db, "categories", editingCategory.id);
+        await updateDoc(categoryRef, categoryData);
+
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === editingCategory.id
+              ? { ...editingCategory, ...categoryData }
+              : c
+          )
+        );
+        toast.success("Category updated successfully!");
+      } else {
+        const docRef = await addDoc(collection(db, "categories"), categoryData);
+        setCategories((prev) => [...prev, { id: docRef.id, ...categoryData }]);
+        toast.success("Category created successfully!");
+      }
+
+      setEditingCategory(null);
+      setShowNewCategory(false);
+    } catch (error) {
+      console.error("Error saving category:", error);
+      toast.error("Error saving category. Please try again.");
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    try {
+      await deleteDoc(doc(db, "categories", categoryId));
+      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+      toast.success("Category deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      toast.error("Error deleting category. Please try again.");
     }
   };
 
@@ -182,7 +243,7 @@ export default function ProductsPage() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Products Section */}
-          <div>
+          <div className="lg:col-span-2">
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
@@ -219,7 +280,7 @@ export default function ProductsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {products.map((product) => (
                       <div
                         key={product.id}
@@ -227,12 +288,13 @@ export default function ProductsPage() {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-foreground">
                                 {product.name}
                               </h3>
                               <Badge variant="outline">
-                                {product.category}
+                                {categories.find((c) => c.slug === product.category)
+                                  ?.name || product.category}
                               </Badge>
                               <Badge
                                 variant={
@@ -368,6 +430,82 @@ export default function ProductsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Categories Section */}
+          <div>
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Categories</CardTitle>
+                  <Button onClick={() => setShowNewCategory(true)}>
+                    Add New Category
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 2 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="p-4 border border-border rounded-lg"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <Skeleton className="h-5 w-24 mb-2" />
+                            <Skeleton className="h-4 w-32" />
+                          </div>
+                          <div className="flex gap-2">
+                            <Skeleton className="h-8 w-8" />
+                            <Skeleton className="h-8 w-8" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {categories.map((category) => (
+                      <div
+                        key={category.id}
+                        className="p-6 border border-border rounded-lg"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-foreground">
+                              {category.name}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              slug: {category.slug}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingCategory(category)}
+                            >
+                              Edit
+                            </Button>
+                            <ConfirmModal
+                              title="Delete Category"
+                              description={`Are you sure you want to delete "${category.name}"? This may affect products in this category.`}
+                              onConfirm={() => handleDeleteCategory(category.id)}
+                              confirmText="Delete Category"
+                            >
+                              <Button variant="outline" size="sm">
+                                Delete
+                              </Button>
+                            </ConfirmModal>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
 
@@ -375,6 +513,7 @@ export default function ProductsPage() {
       {(showNewProduct || editingProduct) && (
         <ProductForm
           product={editingProduct}
+          categories={categories}
           onSave={handleSaveProduct}
           onCancel={() => {
             setShowNewProduct(false);
@@ -394,30 +533,121 @@ export default function ProductsPage() {
           }}
         />
       )}
+
+      {/* Category Form Modal */}
+      {(showNewCategory || editingCategory) && (
+        <CategoryForm
+          category={editingCategory}
+          onSave={handleSaveCategory}
+          onCancel={() => {
+            setShowNewCategory(false);
+            setEditingCategory(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoryForm({
+  category,
+  onSave,
+  onCancel,
+}: {
+  category: Category | null;
+  onSave: (data: Omit<Category, "id">) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    name: category?.name || "",
+    slug: category?.slug || "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    // Auto-generate slug if empty
+    const finalData = {
+      ...formData,
+      slug:
+        formData.slug ||
+        formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]+/g, ""),
+    };
+    onSave(finalData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader>
+          <CardTitle>{category ? "Edit Category" : "Add New Category"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Category Name *</Label>
+              <Input
+                id="cat-name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cat-slug">Slug (URL friendly name)</Label>
+              <Input
+                id="cat-slug"
+                value={formData.slug}
+                placeholder="e.g. espresso-based"
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, slug: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <Button type="submit" className="flex-1">
+                {category ? "Update" : "Create"} Category
+              </Button>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 function ProductForm({
   product,
+  categories,
   onSave,
   onCancel,
 }: {
   product: Product | null;
+  categories: Category[];
   onSave: (data: Omit<Product, "id" | "createdAt" | "updatedAt">) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
     name: product?.name || "",
     basePrice: product?.basePrice || 0,
-    category: product?.category || ("espresso-based" as const),
+    category: product?.category || categories[0]?.slug || "",
     available: product?.available ?? true,
     description: product?.description || "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || formData.basePrice <= 0) {
+    if (!formData.name || formData.basePrice <= 0 || !formData.category) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -463,19 +693,22 @@ function ProductForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">Category *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(value: "espresso-based" | "no-caffeine") =>
+                onValueChange={(value) =>
                   setFormData((prev) => ({ ...prev, category: value }))
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="espresso-based">Espresso-Based</SelectItem>
-                  <SelectItem value="no-caffeine">No Caffeine</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.slug}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -1,10 +1,16 @@
 import { Timestamp } from "firebase/firestore";
 
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   basePrice: number;
-  category: "espresso-based" | "no-caffeine";
+  category: string;
   available: boolean;
   description: string;
   createdAt: Timestamp;
