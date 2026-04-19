@@ -4,6 +4,9 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
+  hasSize?: boolean;
+  hasAddons?: boolean;
+  allowedAddonIds?: string[];
 }
 
 export interface Product {
@@ -35,6 +38,7 @@ export interface OrderItem {
     price: number;
   }[];
   drinkName?: string;
+  size?: "regular" | "large";
 }
 
 export interface OrderStatusChange {

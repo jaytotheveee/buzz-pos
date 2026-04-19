@@ -13,6 +13,7 @@ import { getFirebaseDb } from "@/lib/firebase-client";
 import { markTokenAsUsed } from "@/lib/customer-tokens";
 import { formatTrackingUrl } from "@/lib/order-tracking";
 import { Product, Addon, OrderItem, CustomerToken, Category } from "@/types";
+import { UPSIZE_PRICE, DrinkSize } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +39,27 @@ export default function CustomerOrderForm({
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
+  const [selectedSize, setSelectedSize] = useState<DrinkSize>("regular");
   const [quantity, setQuantity] = useState(1);
   const [drinkNames, setDrinkNames] = useState<string[]>([""]);
+
+  const selectedCategory = selectedProduct
+    ? categories.find((c) => c.slug === selectedProduct.category)
+    : undefined;
+
+  const availableAddonsForSelected = selectedCategory?.hasAddons
+    ? selectedCategory.allowedAddonIds === undefined
+      ? addons
+      : addons.filter((a) =>
+          selectedCategory.allowedAddonIds!.includes(a.id)
+        )
+    : [];
+
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setSelectedAddons([]);
+    setSelectedSize("regular");
+  };
 
   // Customer details form
   const [customerName, setCustomerName] = useState(
@@ -101,17 +121,24 @@ export default function CustomerOrderForm({
   const addToCart = () => {
     if (!selectedProduct) return;
 
+    const upsize =
+      selectedCategory?.hasSize && selectedSize === "large" ? UPSIZE_PRICE : 0;
+
     for (let i = 0; i < quantity; i++) {
       const item: Partial<OrderItem> = {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
         quantity: 1,
-        unitPrice: selectedProduct.basePrice,
+        unitPrice: selectedProduct.basePrice + upsize,
         addons: selectedAddons.map((addon) => ({
           name: addon.name,
           price: addon.price,
         })),
       };
+
+      if (selectedCategory?.hasSize) {
+        item.size = selectedSize;
+      }
 
       const drinkName = drinkNames[i]?.trim();
       if (drinkName) {
@@ -123,6 +150,7 @@ export default function CustomerOrderForm({
 
     setSelectedProduct(null);
     setSelectedAddons([]);
+    setSelectedSize("regular");
     setQuantity(1);
     setDrinkNames([""]);
     toast.success("Added to cart!");
@@ -166,7 +194,9 @@ export default function CustomerOrderForm({
       (sum, addon) => sum + addon.price,
       0
     );
-    return (selectedProduct.basePrice + addonTotal) * quantity;
+    const upsize =
+      selectedCategory?.hasSize && selectedSize === "large" ? UPSIZE_PRICE : 0;
+    return (selectedProduct.basePrice + upsize + addonTotal) * quantity;
   };
 
   const toggleAddon = (addon: Addon) => {
@@ -330,7 +360,7 @@ export default function CustomerOrderForm({
                               ? "border-buzz-orange bg-buzz-cream/20 dark:bg-buzz-brown/20"
                               : "border-border hover:border-muted-foreground"
                           }`}
-                          onClick={() => setSelectedProduct(product)}
+                          onClick={() => handleSelectProduct(product)}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -355,42 +385,82 @@ export default function CustomerOrderForm({
           </CardContent>
         </Card>
 
-        {selectedProduct && (
+        {selectedProduct && selectedCategory?.hasSize && (
           <Card>
             <CardHeader>
-              <CardTitle>Add-ons (Optional)</CardTitle>
+              <CardTitle>Size</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {addons.map((addon) => (
-                  <div
-                    key={addon.id}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedAddons.find((a) => a.id === addon.id)
-                        ? "border-buzz-gold bg-buzz-cream/20 dark:bg-buzz-brown/20"
-                        : "border-border hover:border-muted-foreground"
-                    }`}
-                    onClick={() => toggleAddon(addon)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">
-                          {addon.name}
+              <div className="grid grid-cols-2 gap-3">
+                {(["regular", "large"] as const).map((size) => {
+                  const price =
+                    size === "large"
+                      ? selectedProduct.basePrice + UPSIZE_PRICE
+                      : selectedProduct.basePrice;
+                  return (
+                    <div
+                      key={size}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedSize === size
+                          ? "border-buzz-orange bg-buzz-cream/20 dark:bg-buzz-brown/20"
+                          : "border-border hover:border-muted-foreground"
+                      }`}
+                      onClick={() => setSelectedSize(size)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-foreground capitalize">
+                          {size}
                         </span>
-                        <Badge variant="outline" className="text-xs">
-                          {addon.type}
-                        </Badge>
+                        <span className="font-bold text-foreground">
+                          ₱{price}
+                        </span>
                       </div>
-                      <span className="font-bold text-foreground">
-                        +₱{addon.price}
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         )}
+
+        {selectedProduct &&
+          selectedCategory?.hasAddons &&
+          availableAddonsForSelected.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Add-ons (Optional)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {availableAddonsForSelected.map((addon) => (
+                    <div
+                      key={addon.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedAddons.find((a) => a.id === addon.id)
+                          ? "border-buzz-gold bg-buzz-cream/20 dark:bg-buzz-brown/20"
+                          : "border-border hover:border-muted-foreground"
+                      }`}
+                      onClick={() => toggleAddon(addon)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">
+                            {addon.name}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {addon.type}
+                          </Badge>
+                        </div>
+                        <span className="font-bold text-foreground">
+                          +₱{addon.price}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         {selectedProduct && (
           <Card>
@@ -489,7 +559,14 @@ export default function CustomerOrderForm({
                   <div key={index} className="p-4 border rounded-lg space-y-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-medium">{item.productName}</p>
+                        <p className="font-medium">
+                          {item.productName}
+                          {item.size === "large" && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              Large
+                            </Badge>
+                          )}
+                        </p>
                         {item.addons.length > 0 && (
                           <p className="text-sm text-muted-foreground">
                             +{" "}

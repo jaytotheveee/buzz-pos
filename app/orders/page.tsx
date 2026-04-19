@@ -38,6 +38,7 @@ import {
 import ConfirmModal from "@/components/ConfirmModal";
 import GenerateCustomerLinkModal from "@/components/GenerateCustomerLinkModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Eye, UserPlus, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { formatTrackingUrl } from "@/lib/order-tracking";
@@ -412,6 +413,14 @@ function OrdersContent() {
                                 className="text-xs text-muted-foreground"
                               >
                                 {item.quantity}x {item.productName}
+                                {item.size === "large" && (
+                                  <Badge
+                                    variant="outline"
+                                    className="ml-1 text-[10px]"
+                                  >
+                                    Large
+                                  </Badge>
+                                )}
                                 {item.drinkName && (
                                   <span className="text-buzz-orange ml-1">
                                     ({item.drinkName})
@@ -749,6 +758,14 @@ function ViewOrderModal({
                           <div>
                             <div className="font-medium">
                               {item.productName}
+                              {item.size === "large" && (
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 text-xs"
+                                >
+                                  Large
+                                </Badge>
+                              )}
                               {item.drinkName && (
                                 <span className="text-buzz-orange ml-2">
                                   ({item.drinkName})

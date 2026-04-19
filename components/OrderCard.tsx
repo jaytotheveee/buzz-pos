@@ -84,6 +84,11 @@ export default function OrderCard({ order, onStatusUpdate }: OrderCardProps) {
               <div>
                 <span className="font-medium">
                   {item.quantity}x {item.productName}
+                  {item.size === "large" && (
+                    <Badge variant="outline" className="ml-1 text-[10px]">
+                      Large
+                    </Badge>
+                  )}
                   {item.drinkName && (
                     <span className="text-buzz-orange ml-1">
                       ({item.drinkName})

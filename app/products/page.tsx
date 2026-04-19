@@ -538,6 +538,7 @@ export default function ProductsPage() {
       {(showNewCategory || editingCategory) && (
         <CategoryForm
           category={editingCategory}
+          addons={addons}
           onSave={handleSaveCategory}
           onCancel={() => {
             setShowNewCategory(false);
@@ -551,17 +552,47 @@ export default function ProductsPage() {
 
 function CategoryForm({
   category,
+  addons,
   onSave,
   onCancel,
 }: {
   category: Category | null;
+  addons: Addon[];
   onSave: (data: Omit<Category, "id">) => void;
   onCancel: () => void;
 }) {
   const [formData, setFormData] = useState({
     name: category?.name || "",
     slug: category?.slug || "",
+    hasSize: category?.hasSize ?? false,
+    hasAddons: category?.hasAddons ?? false,
+    allowedAddonIds:
+      category?.allowedAddonIds ?? addons.map((a) => a.id),
   });
+
+  const toggleAllowedAddon = (addonId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      allowedAddonIds: prev.allowedAddonIds.includes(addonId)
+        ? prev.allowedAddonIds.filter((id) => id !== addonId)
+        : [...prev.allowedAddonIds, addonId],
+    }));
+  };
+
+  const toggleHasAddons = () => {
+    setFormData((prev) => {
+      const nextHasAddons = !prev.hasAddons;
+      return {
+        ...prev,
+        hasAddons: nextHasAddons,
+        allowedAddonIds: nextHasAddons
+          ? prev.allowedAddonIds.length > 0
+            ? prev.allowedAddonIds
+            : addons.map((a) => a.id)
+          : [],
+      };
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -569,18 +600,22 @@ function CategoryForm({
       toast.error("Please fill in all required fields");
       return;
     }
-    // Auto-generate slug if empty
-    const finalData = {
-      ...formData,
-      slug:
-        formData.slug ||
-        formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]+/g, ""),
+    const slug =
+      formData.slug ||
+      formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]+/g, "");
+
+    const finalData: Omit<Category, "id"> = {
+      name: formData.name,
+      slug,
+      hasSize: formData.hasSize,
+      hasAddons: formData.hasAddons,
+      allowedAddonIds: formData.hasAddons ? formData.allowedAddonIds : [],
     };
     onSave(finalData);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-8">
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{category ? "Edit Category" : "Add New Category"}</CardTitle>
@@ -609,6 +644,84 @@ function CategoryForm({
                   setFormData((prev) => ({ ...prev, slug: e.target.value }))
                 }
               />
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-buzz-orange"
+                  checked={formData.hasSize}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      hasSize: e.target.checked,
+                    }))
+                  }
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-foreground">
+                    Enable size options (Regular / Large)
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Products in this category can be ordered in Regular or Large.
+                    Large adds a fixed upsize fee.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-buzz-orange"
+                  checked={formData.hasAddons}
+                  onChange={toggleHasAddons}
+                />
+                <span className="text-sm">
+                  <span className="font-medium text-foreground">
+                    Enable add-ons
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Let customers add shots and syrups to products in this
+                    category.
+                  </span>
+                </span>
+              </label>
+
+              {formData.hasAddons && (
+                <div className="pl-7 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Allowed add-ons
+                  </p>
+                  {addons.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      No add-ons exist yet. Create some first.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {addons.map((addon) => (
+                        <label
+                          key={addon.id}
+                          className="flex items-center gap-2 cursor-pointer text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-buzz-gold"
+                            checked={formData.allowedAddonIds.includes(addon.id)}
+                            onChange={() => toggleAllowedAddon(addon.id)}
+                          />
+                          <span className="text-foreground">{addon.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {addon.type}
+                          </Badge>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4">
