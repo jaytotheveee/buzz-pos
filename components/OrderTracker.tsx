@@ -137,6 +137,11 @@ export default function OrderTracker({ order }: OrderTrackerProps) {
                     <TableCell>
                       <div className="font-medium">
                         {item.productName}
+                        {item.size === "large" && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            Large
+                          </Badge>
+                        )}
                         {item.drinkName && (
                           <span className="text-buzz-orange ml-2">
                             ({item.drinkName})

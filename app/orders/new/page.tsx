@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export default function NewOrderPage() {
@@ -159,7 +160,17 @@ export default function NewOrderPage() {
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <p className="font-medium">{item.productName}</p>
+                            <p className="font-medium">
+                              {item.productName}
+                              {item.size === "large" && (
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 text-xs"
+                                >
+                                  Large
+                                </Badge>
+                              )}
+                            </p>
                             {item.addons.length > 0 && (
                               <p className="text-sm text-muted-foreground">
                                 +{" "}
